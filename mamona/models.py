@@ -3,7 +3,7 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from datetime import datetime
 from abstract_mixin import AbstractMixin
-import signals
+import signals, sys
 
 PAYMENT_STATUS_CHOICES = (
 		('new', _("New")),
@@ -26,11 +26,17 @@ class PaymentFactory(models.Model, AbstractMixin):
 		abstract = True
 
 	def get_processor(self):
-		ppath = 'mamona.backends.%s.processor' % self.backend
+		path = '%s.processor' % self.backend
 		try:
-			return getattr(__import__(ppath).backends, self.backend).processor
-		except None:#ImportError:
-			raise ValueError("Backend '%s' is not available or provides no processor." % self.backend)
+			__import__(path)
+		except ImportError:
+			#TODO: add deprecation warning
+			path = 'mamona.backends.%s' % path
+			try:
+				__import__(path)
+			except ImportError:
+				raise ValueError("Backend '%s' is not available or provides no processor." % self.backend)
+		return sys.modules[path]
 
 	def change_status(self, new_status):
 		"""Always change payment's status via this method. Otherwise the signal
